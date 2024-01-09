@@ -5,6 +5,7 @@ import serial
 ACCData = [0.0]*8
 GYROData = [0.0]*8
 AngleData = [0.0]*8
+LocationData = [0.0]*8
 FrameState = 0  # What is the state of the judgment
 Bytenum = 0  # Read the number of digits in this paragraph
 CheckSum = 0  # Sum check bit
@@ -39,8 +40,11 @@ def DueData(inputdata):  # New core procedures, read the data partition, each re
                 CheckSum += data
                 FrameState = 3
                 Bytenum = 2
+            elif data == 0x57 and Bytenum == 1:
+                CheckSum += data
+                FrameState = 4
+                Bytenum = 2
         elif FrameState == 1:  # acc
-
             if Bytenum < 10:            # Read 8 data
                 ACCData[Bytenum-2] = data  # Starting from 0
                 CheckSum += data
@@ -52,7 +56,6 @@ def DueData(inputdata):  # New core procedures, read the data partition, each re
                 Bytenum = 0
                 FrameState = 0
         elif FrameState == 2:  # gyro
-
             if Bytenum < 10:
                 GYROData[Bytenum-2] = data
                 CheckSum += data
@@ -64,7 +67,6 @@ def DueData(inputdata):  # New core procedures, read the data partition, each re
                 Bytenum = 0
                 FrameState = 0
         elif FrameState == 3:  # angle
-
             if Bytenum < 10:
                 AngleData[Bytenum-2] = data
                 CheckSum += data
@@ -75,6 +77,17 @@ def DueData(inputdata):  # New core procedures, read the data partition, each re
                     result = acc+gyro+Angle
                     print(
                         "acc:%10.3f %10.3f %10.3f \ngyro:%10.3f %10.3f %10.3f \nangle:%10.3f %10.3f %10.3f" % result)
+                CheckSum = 0
+                Bytenum = 0
+                FrameState = 0
+        elif FrameState == 4:  # longitude and atitude
+            if Bytenum < 10:
+                LocationData[Bytenum-2] = data
+                CheckSum += data
+                Bytenum += 1
+            else:
+                if data == (CheckSum & 0xff):
+                    longitude, latitude = get_location(AngleData)
                 CheckSum = 0
                 Bytenum = 0
                 FrameState = 0
@@ -139,6 +152,27 @@ def get_angle(datahex):
         angle_z -= 2 * k_angle
     return angle_x, angle_y, angle_z
 
+def get_location(datahex):
+    Lon0 = datahex[0]
+    Lon1 = datahex[1]
+    Lon2 = datahex[2]
+    Lon3 = datahex[3]
+    Lat0 = datahex[4]
+    Lat1 = datahex[5]
+    Lat2 = datahex[6]
+    Lat3 = datahex[7]
+    longitude = ((Lon3<<24)|(Lon2<<16)|(Lon1<<8)|Lon0)
+    latitude = ((Lat3<<24)|(Lat2<<16)|(Lat1<<8)|Lat0)
+    print(longitude)
+    longitude_degree = longitude / 10000000.0
+    latitude_degree = latitude / 10000000.0
+    longitude_minite = (longitude % 10000000.0) / 100000.0
+    latitude_minite = (latitude % 10000000.0) / 100000.0
+    print("logitude degree is ", longitude_degree)
+    print("latitude degree  is ", latitude_degree)
+    print("logitude minute is ", longitude_minite)
+    print("latitude minute  is ", latitude_minite)
+    return longitude, latitude
 
 if __name__ == '__main__':
     port = '/dev/ttyUSB0' # USB serial port 
