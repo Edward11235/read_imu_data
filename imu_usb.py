@@ -4,15 +4,16 @@ import serial
 
 ACCData = [0.0]*8
 GYROData = [0.0]*8
-AngleData = [0.0]*8
+angleData = [0.0]*8
 LocationData = [0.0]*8
 FrameState = 0  # What is the state of the judgment
 Bytenum = 0  # Read the number of digits in this paragraph
 CheckSum = 0  # Sum check bit
 
-a = [0.0]*3
-w = [0.0]*3
-Angle = [0.0]*3
+acc = [0.0]*3
+gyro = [0.0]*3
+angle = [0.0]*3
+location = [0.0]*2
 
 
 def DueData(inputdata):  # New core procedures, read the data partition, each read to the corresponding array 
@@ -21,7 +22,7 @@ def DueData(inputdata):  # New core procedures, read the data partition, each re
     global CheckSum
     global acc
     global gyro
-    global Angle
+    global angle
     for data in inputdata:  # Traversal the input data
         if FrameState == 0:  # When the state is not determined, enter the following judgment
             if data == 0x55 and Bytenum == 0:  # When 0x55 is the first digit, start reading data and increment bytenum
@@ -68,15 +69,12 @@ def DueData(inputdata):  # New core procedures, read the data partition, each re
                 FrameState = 0
         elif FrameState == 3:  # angle
             if Bytenum < 10:
-                AngleData[Bytenum-2] = data
+                angleData[Bytenum-2] = data
                 CheckSum += data
                 Bytenum += 1
             else:
                 if data == (CheckSum & 0xff):
-                    Angle = get_angle(AngleData)
-                    result = acc+gyro+Angle
-                    print(
-                        "acc:%10.3f %10.3f %10.3f \ngyro:%10.3f %10.3f %10.3f \nangle:%10.3f %10.3f %10.3f" % result)
+                    angle = get_angle(angleData)
                 CheckSum = 0
                 Bytenum = 0
                 FrameState = 0
@@ -87,7 +85,8 @@ def DueData(inputdata):  # New core procedures, read the data partition, each re
                 Bytenum += 1
             else:
                 if data == (CheckSum & 0xff):
-                    longitude, latitude = get_location(LocationData)
+                    location = get_location(LocationData)
+                    print(f"acceleration: {acc}\ngyro: {gyro}\nangle: {angle}\nlocation: {location}")
                 CheckSum = 0
                 Bytenum = 0
                 FrameState = 0
@@ -153,25 +152,19 @@ def get_angle(datahex):
     return angle_x, angle_y, angle_z
 
 def get_location(datahex):
-    Lon0 = datahex[0]
-    Lon1 = datahex[1]
-    Lon2 = datahex[2]
-    Lon3 = datahex[3]
-    Lat0 = datahex[4]
-    Lat1 = datahex[5]
-    Lat2 = datahex[6]
-    Lat3 = datahex[7]
-    longitude = ((Lon3<<24)|(Lon2<<16)|(Lon1<<8)|Lon0)
-    latitude = ((Lat3<<24)|(Lat2<<16)|(Lat1<<8)|Lat0)
-    print(longitude)
-    longitude_degree = longitude / 10000000.0
-    latitude_degree = latitude / 10000000.0
-    longitude_minite = (longitude % 10000000.0) / 100000.0
-    latitude_minite = (latitude % 10000000.0) / 100000.0
-    print("logitude degree is ", longitude_degree)
-    print("latitude degree  is ", latitude_degree)
-    print("logitude minute is ", longitude_minite)
-    print("latitude minute  is ", latitude_minite)
+    longitude_reading = int.from_bytes(datahex[0:4], byteorder='little', signed=True)
+    latitude_reading = int.from_bytes(datahex[4:8], byteorder='little', signed=True)
+    western_global = longitude_reading < 0
+    if western_global:  # convert long to positive to do operations
+        longitude_reading *= -1
+    longitude_degree = longitude_reading // 10000000
+    latitude_degree = latitude_reading // 10000000
+    longitude_minite = (longitude_reading % 10000000.0) / 100000.0
+    latitude_minite = (latitude_reading % 10000000.0) / 100000.0
+    longitude = longitude_degree + longitude_minite / 60.0
+    latitude = latitude_degree + latitude_minite / 60.0
+    if western_global:  # convert long to positive to do operations
+        longitude *= -1
     return longitude, latitude
 
 if __name__ == '__main__':
