@@ -87,7 +87,7 @@ def DueData(inputdata):  # New core procedures, read the data partition, each re
                 Bytenum += 1
             else:
                 if data == (CheckSum & 0xff):
-                    longitude, latitude = get_location(AngleData)
+                    longitude, latitude = get_location(LocationData)
                 CheckSum = 0
                 Bytenum = 0
                 FrameState = 0
