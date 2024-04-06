@@ -6,6 +6,7 @@ ACCData = [0.0]*8
 GYROData = [0.0]*8
 angleData = [0.0]*8
 LocationData = [0.0]*8
+GPSData = [0.0]*8
 FrameState = 0  # What is the state of the judgment
 Bytenum = 0  # Read the number of digits in this paragraph
 CheckSum = 0  # Sum check bit
@@ -14,6 +15,9 @@ acc = [0.0]*3
 gyro = [0.0]*3
 angle = [0.0]*3
 location = [0.0]*2
+GPS_height = 0.0
+GPS_yaw = 0.0
+GPS_speed = 0.0
 
 
 def DueData(inputdata):  # New core procedures, read the data partition, each read to the corresponding array 
@@ -45,6 +49,10 @@ def DueData(inputdata):  # New core procedures, read the data partition, each re
                 CheckSum += data
                 FrameState = 4
                 Bytenum = 2
+            elif data == 0x58 and Bytenum == 1:
+                CheckSum += data
+                FrameState = 5
+                Bytenum = 2 
         elif FrameState == 1:  # acc
             if Bytenum < 10:            # Read 8 data
                 ACCData[Bytenum-2] = data  # Starting from 0
@@ -87,6 +95,18 @@ def DueData(inputdata):  # New core procedures, read the data partition, each re
                 if data == (CheckSum & 0xff):
                     location = get_location(LocationData)
                     print(f"acceleration: {acc}\ngyro: {gyro}\nangle: {angle}\nlocation: {location}")
+                CheckSum = 0
+                Bytenum = 0
+                FrameState = 0
+        elif FrameState == 5:  # longitude and atitude
+            if Bytenum < 10:
+                GPSData[Bytenum-2] = data
+                CheckSum += data
+                Bytenum += 1
+            else:
+                if data == (CheckSum & 0xff):
+                    GPS_height, GPS_yaw, GPS_speed = get_GPS_data(GPSData)
+                    print(f"GPS_height: {GPS_height}\nGPS_yaw: {GPS_yaw}\nGPS_speed: {GPS_speed}")
                 CheckSum = 0
                 Bytenum = 0
                 FrameState = 0
@@ -166,6 +186,20 @@ def get_location(datahex):
     if western_global:  # convert long to positive to do operations
         longitude *= -1
     return longitude, latitude
+
+def get_GPS_data(datahex):
+    GPSHeightL = datahex[0]
+    GPSHeightH = datahex[1]
+    GPSYawL = datahex[2]
+    GPSYawH = datahex[3]
+    GPSV0 = datahex[4]
+    GPSV1 = datahex[5]
+    GPSV2 = datahex[6]
+    GPSV3 = datahex[7]
+    GPSHeight = (GPSHeightH << 8 | GPSHeightL) / 10
+    GPSYaw = (GPSYawH << 8 | GPSYawL) / 100
+    GPSV = (GPSV3 << 24 | GPSV2 << 16 | GPSV1 << 8 | GPSV0) / 1000 / 3.6  # to m/s
+    return GPSHeight, GPSYaw, GPSV
 
 if __name__ == '__main__':
     port = '/dev/ttyUSB0' # USB serial port 
